@@ -1,10 +1,3 @@
-"""
-Author: Arun Balajee Vasudevan
-Licensed under the CC BY-NC 4.0 license (https://creativecommons.org/licenses/by-nc/4.0/)
-"""
-"""
-training code
-"""
 from __future__ import absolute_import
 from __future__ import division
 import argparse
@@ -30,6 +23,15 @@ from torch import nn
 sys.path.insert(0, './../../monodepth2-master/')
 #from torchvision import transforms, datasets
 from layers import disp_to_depth
+
+"""
+Author: Arun Balajee Vasudevan
+Licensed under the CC BY-NC 4.0 license (https://creativecommons.org/licenses/by-nc/4.0/)
+"""
+"""
+training code
+"""
+f
 
 def compute_errors(gt, pred):
     """Computation of error metrics between predicted and ground truth depths

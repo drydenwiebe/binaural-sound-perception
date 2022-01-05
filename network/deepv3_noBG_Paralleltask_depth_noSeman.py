@@ -32,7 +32,8 @@ import functools
 from network import SEresnext
 from network import Resnet
 from network.wider_resnet import wider_resnet38_a2
-from network.audio_net_Seq_multitask import AudioNet_multitask
+# not included in authors github upload
+# from network.audio_net_Seq_multitask import AudioNet_multitask
 from network.mynn import initialize_weights, Norm2d, Upsample
 
 
@@ -200,6 +201,8 @@ class DeepV3Plus(nn.Module):
         main_out = Upsample(dec1, x_size[2:])
 
         if self.training:
+            print(main_out.shape)
+            print(gts.shape)
             return self.criterion(main_out, gts)
 
         return main_out
@@ -246,24 +249,6 @@ class DeepWV3Plus(nn.Module):
         super(DeepWV3Plus, self).__init__()
         self.criterion = criterion
         self.MSEcriterion= torch.nn.MSELoss()
-        logging.info("Trunk: %s", trunk)
-        wide_resnet = wider_resnet38_a2(classes=1000, dilation=True)
-        wide_resnet = torch.nn.DataParallel(wide_resnet)
-        try:
-            checkpoint = torch.load('/srv/beegfs02/scratch/language_vision/data/Sound_Event_Prediction/semantic-segmentation-master/pretrained_models/wider_resnet38.pth.tar', map_location='cpu')
-            wide_resnet.load_state_dict(checkpoint['state_dict'])
-            del checkpoint
-        except:
-            print("=====================Could not load ImageNet weights=======================")
-            print("Please download the ImageNet weights of WideResNet38 in our repo to ./pretrained_models.")
-
-        #audio_unet = AudioNet_multitask(ngf=64,input_nc=2)
-        #Acheckpoint = torch.load('/srv/beegfs02/scratch/language_vision/data/Sound_Event_Prediction/audio/audioSynthesis/checkpoints/synBi2Bi_16_25/3_audio.pth', map_location='cpu')
-        #pretrained_dict = Acheckpoint
-        #model_dict = audio_unet.state_dict()
-        #pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict and k!='audionet_upconvlayer1.0.weight' and k!='audionet_upconvlayer5.0.weight' and k!='audionet_upconvlayer5.0.bias' and k!='conv1x1.0.weight' and k!='conv1x1.0.bias' and k!='conv1x1.1.weight' and k!='conv1x1.1.bias' and k!='conv1x1.1.running_mean' and k!='conv1x1.1.running_var'}
-        #model_dict.update(pretrained_dict) 
-        #audio_unet.load_state_dict(model_dict)
 
         self.audionet_convlayer1 = unet_conv(input_nc, ngf)
         self.audionet_convlayer2 = unet_conv(ngf, ngf * 2)
@@ -276,20 +261,6 @@ class DeepWV3Plus(nn.Module):
         self.audionet_upconvlayer4 = unet_upconv(ngf * 2, ngf)
         self.audionet_upconvlayer5 = unet_upconv(ngf  , output_nc, True) #outermost layer use a sigmoid to bound the mask
         self.conv1x1 = create_conv(4096, 2, 1, 0)
-
-        wide_resnet = wide_resnet.module
-        #self.unet= audio_unet
-        #print(wide_resnet)
-        self.mod1 = wide_resnet.mod1
-        self.mod2 = wide_resnet.mod2
-        self.mod3 = wide_resnet.mod3
-        self.mod4 = wide_resnet.mod4
-        self.mod5 = wide_resnet.mod5
-        self.mod6 = wide_resnet.mod6
-        self.mod7 = wide_resnet.mod7
-        self.pool2 = wide_resnet.pool2
-        self.pool3 = wide_resnet.pool3
-        del wide_resnet
 
         self.aspp = _AtrousSpatialPyramidPoolingModule(512, 64,
                                                        output_stride=8)
@@ -319,7 +290,11 @@ class DeepWV3Plus(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(128, 1, kernel_size=1, bias=False))
 
-        initialize_weights(self.final);initialize_weights(self.bot_aud1);initialize_weights(self.bot_multiaud);
+        initialize_weights(self.final)
+        initialize_weights(self.bot_aud1)
+        initialize_weights(self.bot_multiaud)
+
+        self.ssim_module = ssim_module = SSIM(data_range=1.0, size_average=True, channel=1)
 
     def forward_conv(self, x):
         audio_conv1feature = self.audionet_convlayer1(x)
@@ -332,8 +307,8 @@ class DeepWV3Plus(nn.Module):
         return audio_conv4feature, audio_conv5feature #m(mask_prediction)
 
     def forward_SASR(self, x1, x2):
-        _,audio_conv5feature = self.forward_conv(x1)
-        _,audio_conv5feature2 = self.forward_conv(x2)
+        _, audio_conv5feature = self.forward_conv(x1)
+        _, audio_conv5feature2 = self.forward_conv(x2)
 
         #visual_feat = self.conv1x1(visual_feat)
         #visual_feat = visual_feat.view(visual_feat.shape[0], -1, 1, 1) #flatten visual feature
@@ -358,105 +333,47 @@ class DeepWV3Plus(nn.Module):
         mask_prediction2 = self.audionet_upconvlayer5(audio_upconv4feature2) * 2 - 1
         m = nn.ZeroPad2d((0,1,0,1))
         #print(mask_prediction.shape)
-        return m(mask_prediction),m(mask_prediction2)
+        return m(mask_prediction), m(mask_prediction2)
 
 
-    def forward_Seg(self,x):
-        #batch_size, timesteps, C, H, W = x.size()
-        #c_in = x.view(batch_size * timesteps, C, H, W)
-        audio_conv4feature,_ = self.forward_conv(x)
-        #audio_feat = audio_conv5feature.view(audio_conv5feature.shape[0], -1, 1, 1)
-        #audio_feat = self.conv1x1(audio_feat)
-        #r_in = audio_feat.view(batch_size, timesteps, -1)
-        #r_out = self.rnn(r_in)
+    def forward_Seg(self, x):
+        audio_conv4feature, _ = self.forward_conv(x)
         return audio_conv4feature
 
-    def forward(self, inp_img, audio1, audio6, gts_diff_2=None, gts_diff_5=None,gts_depth=None):
-        '''batch_size, timesteps, C, H, W = audio1.size()
-        c_in1 = audio1.view(batch_size * timesteps, C, H, W);c_in2 = audio6.view(batch_size * timesteps, C, H, W);
-        audio_conv1feature = self.audionet_convlayer1(c_in1);audio_conv1feature2 = self.audionet_convlayer1(c_in2)
-        audio_conv2feature = self.audionet_convlayer2(audio_conv1feature);audio_conv2feature2 = self.audionet_convlayer2(audio_conv1feature2)
-        audio_conv3feature = self.audionet_convlayer3(audio_conv2feature);audio_conv3feature2 = self.audionet_convlayer3(audio_conv2feature2)
-        audio_conv4feature = self.audionet_convlayer4(audio_conv3feature);audio_conv4feature2 = self.audionet_convlayer4(audio_conv3feature2)
-        audio_conv5feature = self.audionet_convlayer5(audio_conv4feature);audio_conv5feature2 = self.audionet_convlayer5(audio_conv4feature2)
-        audio_feat = audio_conv5feature.view(audio_conv5feature.shape[0], -1, 1, 1);audio_feat2 = audio_conv5feature2.view(audio_conv5feature2.shape[0], -1, 1, 1);
-        audio_feat = self.conv1x1(audio_feat);audio_feat2 = self.conv1x1(audio_feat2)
-        r_in = audio_feat.view(batch_size, timesteps, -1);r_in2 = audio_feat2.view(batch_size, timesteps, -1)
-        '''
-        out_aud1 = self.forward_Seg(audio1);out_aud6 = self.forward_Seg(audio6)
+    def forward(self, inp_img, audio1, audio6, gts_diff_2=None, gts_diff_5=None, gts_depth=None):
+        out_aud1 = self.forward_Seg(audio1)
+        out_aud6 = self.forward_Seg(audio6)
 
-        #print(inp.size())
-        #x_size = inp_img.size()
-        #out_aud1=self.unet(audio1);out_aud6 = self.unet(audio6);
-        #x = self.mod1(inp_img)
-        #m2 = self.mod2(self.pool2(x))
-        #x = self.mod3(self.pool3(m2))
-        #x = self.mod4(x)
-        #x = self.mod5(x)
-        #x = self.mod6(x)
-        #x = self.mod7(x)
         mask_prediction, mask_prediction2 = self.forward_SASR(audio1, audio6);
+        
+        if gts_diff_2 == None or gts_diff_5 == None:
+            loss = torch.tensor([0.0], requires_grad=True).cuda()
+        else:
+            loss = self.MSEcriterion(mask_prediction, gts_diff_2)+ self.MSEcriterion(mask_prediction2, gts_diff_5)
 
-        #print(mask_prediction2.shape,gts_diff_5.shape)
-        loss = self.MSEcriterion(mask_prediction,gts_diff_2)+ self.MSEcriterion(mask_prediction2,gts_diff_5)
+        dec0_aud1 =  Upsample(out_aud1, [60,120])
+        dec0_aud1 = self.bot_aud1(dec0_aud1)
 
-        #x = self.aspp(x)
-        #dec0_up = self.bot_aspp(x);print(dec0_up.shape)
-        dec0_aud1 =  Upsample(out_aud1, [60,120]);dec0_aud1 = self.bot_aud1(dec0_aud1);
-        dec0_aud6 =  Upsample(out_aud6, [60,120]);dec0_aud6 = self.bot_aud1(dec0_aud6);
-        dec0_aud = [dec0_aud1, dec0_aud6];dec0_aud = torch.cat(dec0_aud,1);dec0_aud = self.bot_multiaud(dec0_aud);
-        #dec0_up = [dec0_up,dec0_aud];dec0_up = torch.cat(dec0_up,1);
-        #dec0_auds= self.aspp(dec0_aud);
+        dec0_aud6 =  Upsample(out_aud6, [60,120])
+        dec0_aud6 = self.bot_aud1(dec0_aud6)
+        
+        dec0_aud = [dec0_aud1, dec0_aud6]
+        dec0_aud = torch.cat(dec0_aud,1)
+        dec0_aud = self.bot_multiaud(dec0_aud)
+        
         dec0_audd = self.depthaspp(dec0_aud);
-        #dec0_up = self.bot_aspp(dec0_auds);
         dec0_upd = self.bot_depthaspp(dec0_audd);
-        #print(dec0_aud.shape, dec0_up.shape);
 
-        #dec0_fine = self.bot_fine(m2)
-        #dec0_up = Upsample(dec0_up,[240,480]);
         dec0_upd = Upsample(dec0_upd, [160,512]);
-        #dec0 = [dec0_fine, dec0_up]
-        #dec0 = torch.cat(dec0, 1)
-        #print(dec0.shape, out_aud1.shape, out_aud6.shape)
-        #dec1 = self.final(dec0_up);
         dec1d = self.final_depth(dec0_upd)
-        #out = Upsample(dec1,[480,960]);
         outd = Upsample(dec1d, [320,1024])
 
 
-        #print(out.size())
-        #out=self.final(out)
-        #print(out.size(),x_size)
-        #out = Upsample(out, x_size[1:])
-        #print(out.size(),gts.size())
-        #print(out[0,0,0:10,0],gts[0,0:10,0])
         if self.training:
-            if loss <5.0:
-                #print(loss,self.criterion(out, gts))
-                return loss+self.MSEcriterion(outd,gts_depth)
+            if loss < 5.0:
+                return self.MSEcriterion(outd, gts_depth), loss + self.MSEcriterion(outd, gts_depth)
             else:
-                return self.MSEcriterion(outd,gts_depth)
+                return self.MSEcriterion(outd, gts_depth), self.MSEcriterion(outd, gts_depth)
+
         return outd
-
-
-def DeepSRNX50V3PlusD_m1(num_classes, criterion):
-    """
-    SEResnet 50 Based Network
-    """
-    return DeepV3Plus(num_classes, trunk='seresnext-50', criterion=criterion, variant='D',
-                      skip='m1')
-
-def DeepR50V3PlusD_m1(num_classes, criterion):
-    """
-    Resnet 50 Based Network
-    """
-    return DeepV3Plus(num_classes, trunk='resnet-50', criterion=criterion, variant='D', skip='m1')
-
-
-def DeepSRNX101V3PlusD_m1(num_classes, criterion):
-    """
-    SeResnext 101 Based Network
-    """
-    return DeepV3Plus(num_classes, trunk='seresnext-101', criterion=criterion, variant='D',
-                      skip='m1')
 

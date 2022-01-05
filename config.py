@@ -64,7 +64,8 @@ __C.STRICTBORDERCLASS = None
 #Attribute Dictionary for Dataset
 __C.DATASET = AttrDict()
 #360audio dataset Dir Location
-__C.DATASET.OMNIAUDIO_DIR = '/srv/beegfs02/scratch/language_vision/data/Sound_Event_Prediction/audio/dataset/outdoor/'
+# __C.DATASET.OMNIAUDIO_DIR = '/srv/beegfs02/scratch/language_vision/data/Sound_Event_Prediction/audio/dataset/outdoor/'
+__C.DATASET.OMNIAUDIO_DIR = '/home/drydenw/projects/rrg-kyi/drydenw/binaural-sound-perception/dataset_public/'
 #Cityscapes Dir Location
 __C.DATASET.CITYSCAPES_DIR = ''
 #SDC Augmented Cityscapes Dir Location

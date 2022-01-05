@@ -58,9 +58,9 @@ def get_rms(tr):
     if tr==7:    return 53.75015494955412
     if tr==8:    return 44.507015861649144
 
-track=3;    ########### select the track 
+track = 3;    ########### select the track
 
-for sc in range(1,166):
+for sc in range(1, 166):
     fdir="./dataset_public/scene%04d/"%sc
     print(fdir)
     for g in glob.glob(fdir+"*.WAV"):
@@ -68,7 +68,7 @@ for sc in range(1,166):
     d1=audiofolder+"/"+audiofolder.split('/')[-1].split('.')[0]+"_Tr"+str(track)+".WAV";
     aud_Tr1,rate = get_signal(audiofolder+"/"+audiofolder.split('/')[-1].split('.')[0]+"_Tr"+str(track)+".WAV")
     rms_value = get_rms(track)
-    aud_Tr1 = normalize(aud_Tr1,rms=rms_value)
+    aud_Tr1 = normalize(aud_Tr1, rms=rms_value)
     save_dir=fdir+"spectrograms/Track"+str(track)+"/";
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)

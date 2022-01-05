@@ -178,13 +178,16 @@ def make_dataset(quality, mode,  fine_coarse_mult=6, cv_split=0):
     gtCoarse/gtCoarse/train_extra/augsburg
     """
     items = []
-    audioDict=np.load('/'.join(root.split('/')[:-2])+"/SoundEnergy_array_165scenes.npy");#print(audioDict)
+    audioDict=np.load('/'.join(root.split('/')[:-2])+"/SoundEnergy_array_165scenes_calculated.npy", allow_pickle=True);#print(audioDict)
+    # print(audioDict)
     assert (quality == 'semantic' and mode in ['train', 'val'])
     if mode == 'train':
         for sc in range(1,115):
             if sc<37:    img_dir_name = 'scene'+str(sc)
             else:    img_dir_name = 'scene%04d'%sc
+            print(img_dir_name)
             check_audioImg_path = os.path.join(root, img_dir_name, 'spectrograms/Track1/')
+            print(check_audioImg_path)
             audioImg_path = os.path.join(root, img_dir_name, 'spectrograms/Track3/')
             audioImg_path6 = os.path.join(root, img_dir_name, 'spectrograms/Track8/')
             wavaudioImg_path = os.path.join(root, img_dir_name, 'wavsplits/Track3/')
@@ -197,7 +200,7 @@ def make_dataset(quality, mode,  fine_coarse_mult=6, cv_split=0):
             img_path = os.path.join(root, img_dir_name,'bg.png')
             mask_postfix = '_mask.png';audio_postfix='.npy';depth_postfix='_disp.npy';
             for it_full in glob.glob(check_audioImg_path+"*.npy"):
-                #print(it_full)
+                print(it_full)
                 it = it_full.split('/')[-1].split('.')[0]
                 if it_full in audioDict.item()[sc]:
                     item = (img_path, os.path.join(mask_path, it+mask_postfix), os.path.join(depthmask_path, it+depth_postfix), os.path.join(Sem_mask_path, it+mask_postfix), os.path.join(audioImg_path, it+audio_postfix), os.path.join(audioImg_path6, it+audio_postfix), wavaudioImg_path+it+'.npy', wavaudioImg_path6+it+'.npy', wavaudioImg_path2+it+'.npy', wavaudioImg_path5+it+'.npy')
@@ -314,6 +317,17 @@ class OmniAudio(data.Dataset):
 
         img_path, mask_path,depthmask_path,sem_mask, audio1, audio6, audio_path1, audio_path6, audio_path2, audio_path5 = self.imgs[index]
         img_name = img_path.split('/')[-2]+"_"+os.path.splitext(os.path.basename(audio1))[0]
+
+        print("img_path")
+        print(img_path)
+        print("mask_path")
+        print(mask_path)
+        print("depthmask_path")
+        print(depthmask_path)
+        print("sem_mask")
+        print(sem_mask)
+        print("audio1")
+        print(audio1)
 
         #### W/O Skip connection scratch training ####
         img, mask,depthmask, sem_mask, audio1, audio6, audio_channel1, audio_channel6, audio_channel2, audio_channel5 = Image.open(img_path), Image.open(mask_path),np.load(depthmask_path), Image.open(sem_mask), np.load(audio1), np.load(audio6), np.load(audio_path1), np.load(audio_path6), np.load(audio_path2), np.load(audio_path5)

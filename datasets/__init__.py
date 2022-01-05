@@ -36,6 +36,7 @@ Dataset setup and loaders
 from datasets import OmniAudio_noBG_Paralleltask
 from datasets import OmniAudio_noBG_Paralleltask_depth
 from datasets import OmniAudio_noBG_Paralleltask_depth_noSeman
+from datasets import OmniAudio_noBG_Paralleltask_depth_noSeman_modified
 import torchvision.transforms as standard_transforms
 
 import transforms.joint_transforms as joint_transforms
@@ -61,6 +62,10 @@ def setup_loaders(args):
         args.dataset_cls = OmniAudio_noBG_Paralleltask_depth_noSeman
         args.train_batch_size = 4#args.bs_mult * args.ngpu
         args.val_batch_size = 4
+    elif args.dataset == 'OmniAudio_noBG_Paralleltask_depth_noSeman_modified':
+        args.dataset_cls = OmniAudio_noBG_Paralleltask_depth_noSeman_modified
+        args.train_batch_size = 12 #args.bs_mult * args.ngpu
+        args.val_batch_size = 12
     else:
         raise Exception('Dataset {} is not supported'.format(args.dataset))
 
@@ -73,7 +78,6 @@ def setup_loaders(args):
     args.num_workers = 4 * args.ngpu
     if args.test_mode:
         args.num_workers = 1
-
 
     mean_std = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
@@ -172,7 +176,25 @@ def setup_loaders(args):
             joint_transform_list=val_joint_transform_list,
             transform=val_input_transform,
             target_transform=target_transform)
-        
+
+    elif args.dataset == 'OmniAudio_noBG_Paralleltask_depth_noSeman_modified':
+        eval_size = 960
+        val_joint_transform_list = [
+            joint_transforms.ResizeHeight(eval_size),
+            joint_transforms.CenterCropPad(eval_size)]
+        train_set = args.dataset_cls.OmniAudio(
+            'semantic', 'train',
+            joint_transform_list=train_joint_transform_list,
+            transform=train_input_transform,
+            target_transform=target_train_transform)
+        val_set = args.dataset_cls.OmniAudio(
+            'semantic', 'val',
+            joint_transform_list=val_joint_transform_list,
+            transform=val_input_transform,
+            target_transform=target_transform,
+            eval_mode=True)
+ 
+
     elif args.dataset == 'null_loader':
         train_set = args.dataset_cls.null_loader(args.crop_size)
         val_set = args.dataset_cls.null_loader(args.crop_size)
